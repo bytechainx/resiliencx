@@ -12,7 +12,7 @@
 
 ### 新增
 
-- 从 `xhyper.rs` 抽取为独立可发布 crate，移除对内部 crate `kernel` 与 `contracts` 的依赖。
+- 从 `xhyper.rs` 抽取为独立 crate，移除对内部 crate `kernel` 与 `contracts` 的依赖。
 - 新增 crate 内错误模型 `src/error.rs`：`ErrorKind`（9 个语义分类）、`ResiliencxError`
   （10 个构造器 + `kind` / `context` / `retry_after` / `is_retryable` / `is_bug` / `with_source`）
   与别名 `ResiliencxResult`；`Display` 形如 `Transient: <上下文>`，`Debug` 不展开 source。
