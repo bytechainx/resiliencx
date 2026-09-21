@@ -8,6 +8,12 @@
 
 ## [Unreleased]
 
+### 新增
+
+- 特性 002：`tests/tdd_contracts.rs`（覆盖公开接口契约全部 12 个入口的行为契约 +
+  TDD-PROBE 变异探测表）、`tests/sdd_spec.rs`（`docs/标准.md` 全部 7 个章节条款的
+  可执行断言）、`tests/aidd_boundary.rs`（8 条经复核的 AI 生成对抗 / 边界用例）。
+
 ## [0.1.0] - 2026-09-21
 
 ### 新增
