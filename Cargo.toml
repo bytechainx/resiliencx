@@ -7,7 +7,7 @@ description = "弹性原语：安全重试 + 重试预算 + 熔断 + 限流 + �
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/bytechainx/resiliencx"
 homepage = "https://github.com/bytechainx/resiliencx"
-documentation = "https://docs.rs/resiliencx"
+documentation = "https://github.com/bytechainx/resiliencx#readme"
 readme = "README.md"
 keywords = ["retry", "circuit-breaker", "rate-limit", "bulkhead", "resilience"]
 categories = ["asynchronous", "concurrency"]
@@ -52,7 +52,3 @@ panic = "deny"
 unreachable = "deny"
 todo = "deny"
 unimplemented = "deny"
-
-[package.metadata.docs.rs]
-all-features = true
-rustdoc-args = ["--cfg", "docsrs"]

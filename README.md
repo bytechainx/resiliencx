@@ -9,14 +9,19 @@
 
 ## 安装
 
-```bash
-cargo add resiliencx
+本 crate **不发布到 crates.io**；它与 `instrumentationx` 之间是 path 依赖，需把两个仓库
+clone 到同级目录后以 path 引入：
+
+```toml
+[dependencies]
+resiliencx = { path = "../resiliencx" }
+instrumentationx = { path = "../instrumentationx" }
 ```
 
 启用非阻塞 `tokio` 等待与整次 deadline：
 
-```bash
-cargo add resiliencx --features tokio
+```toml
+resiliencx = { path = "../resiliencx", features = ["tokio"] }
 ```
 
 ## 能力矩阵
@@ -115,7 +120,7 @@ async budget 在退避前原子 reserve；deadline 在退避期取消时，未 c
 cargo fmt --check
 cargo clippy --all-targets --all-features -- -D warnings
 cargo test --all-features
-# instrumentationx 尚未发布到 crates.io；打包时需要显式指向同级的本地 checkout。
+# instrumentationx 不发布到 crates.io，该覆盖是长期约定；打包时始终显式指向同级的本地 checkout。
 cargo package --no-verify --offline \
   --config 'patch.crates-io.instrumentationx.path="../instrumentationx"'
 ```
