@@ -1,0 +1,67 @@
+name: CI
+
+# 组织 Rust 规范的 P0 门禁三件套（见仓库 AGENTS.md）：
+#   cargo fmt --check / cargo clippy --all-targets -- -D warnings / cargo test
+#
+# 与第一轮适配器仓库的 ci.yml 的差异（两处）：
+# 1. 本仓库依赖尚未发布到 crates.io 的 `instrumentationx`，Cargo.toml 中以
+#    `path = "../instrumentationx"` 声明。CI 必须把该仓库 checkout 到同一相对位置，
+#    依赖才能解析。
+#    前置条件：`bytechainx/instrumentationx` 的 PR #1 必须先合并（其 `main` 目前为空，
+#    内容暂在其 `feature/initial-migration` 分支上）。在此之前本 workflow 会因
+#    依赖解析失败而红，这是预期行为，不是本仓库的缺陷。
+# 2. 本仓库有可选 feature `tokio`（`TokioSleepWait` / `retry_async_with_deadline`
+#    在该 feature 下才参与编译），因此 clippy 与 test 均加 `--all-features`，
+#    否则 feature-gated 代码不会被 CI 覆盖。
+#
+# 其余约定与第一轮一致：
+# - 不使用 `--locked`：本仓库是库，`Cargo.lock` 不入库（由下游决定版本）。
+# - `cargo test` 同时运行单元测试、集成测试与文档测试（doctest）。
+# - 不依赖任何外部服务：全部用例离线运行。
+# - 不设全局 `RUSTFLAGS`：`-D warnings` 只由 clippy 那一行的 `--` 参数表达，
+#   避免影响依赖构建且保持与本地门禁逐字一致。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  gate:
+    name: fmt / clippy / test
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout 本仓库
+        uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: checkout 依赖 instrumentationx
+        uses: actions/checkout@v4
+        with:
+          repository: bytechainx/instrumentationx
+          path: instrumentationx
+
+      - name: 安装 Rust 工具链（含 rustfmt 与 clippy）
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+
+      - name: cargo fmt --check
+        working-directory: app
+        run: cargo fmt --check
+
+      - name: cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: app
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: cargo test --all-features
+        working-directory: app
+        run: cargo test --all-features
