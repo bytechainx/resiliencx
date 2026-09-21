@@ -310,6 +310,20 @@ pub fn retry_delay_ms_with_seed(config: &RetryConfig, attempt: u32, seed: u64) -
 ///
 /// 本兼容入口等价于 seed 为 0 的 [`apply_seeded_jitter`]；仅依赖 attempt，
 /// 多实例会产生相同序列，**不具备抗群聚保证**。
+///
+/// # Examples
+///
+/// ```
+/// use resiliencx::apply_deterministic_jitter;
+///
+/// // 抖动比例为 0 时原样返回。
+/// assert_eq!(apply_deterministic_jitter(1000, 0, 3), 1000);
+/// // 抖动上限 1000 bps（10%）时，结果落在 [900, 1000]。
+/// let jittered = apply_deterministic_jitter(1000, 1000, 1);
+/// assert!((900..=1000).contains(&jittered), "jittered={jittered}");
+/// // 只依赖入参：同一组参数每次得到同一结果。
+/// assert_eq!(jittered, apply_deterministic_jitter(1000, 1000, 1));
+/// ```
 #[must_use]
 pub fn apply_deterministic_jitter(delay_ms: u64, jitter_bps: u32, attempt: u32) -> u64 {
     apply_seeded_jitter(delay_ms, jitter_bps, attempt, 0)
