@@ -1,0 +1,58 @@
+[package]
+name = "resiliencx"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+description = "弹性原语：安全重试 + 重试预算 + 熔断 + 限流 + 舱壁，无墙钟依赖、可注入观测"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/bytechainx/resiliencx"
+homepage = "https://github.com/bytechainx/resiliencx"
+documentation = "https://docs.rs/resiliencx"
+readme = "README.md"
+keywords = ["retry", "circuit-breaker", "rate-limit", "bulkhead", "resilience"]
+categories = ["asynchronous", "concurrency"]
+include = [
+    "src/**/*",
+    "tests/**/*",
+    "benches/**/*",
+    "examples/**/*",
+    "docs/**/*",
+    "README.md",
+    "LICENSE-*",
+    "Cargo.toml",
+]
+
+[dependencies]
+instrumentationx = { version = "0.1.0", path = "../instrumentationx" }
+async-trait = "0.1"
+tokio = { version = "1", optional = true, default-features = false, features = ["time"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "time"] }
+
+[features]
+default = []
+## 启用 `TokioSleepWait` 与 `retry_async_with_deadline`（非阻塞 `tokio::time`）。
+tokio = ["dep:tokio"]
+
+[[bench]]
+name = "hot_path"
+harness = false
+
+[lints.rust]
+private_interfaces = "deny"
+private_bounds = "deny"
+unused_must_use = "warn"
+
+[lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+unreachable = "deny"
+todo = "deny"
+unimplemented = "deny"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
