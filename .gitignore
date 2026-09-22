@@ -4,3 +4,5 @@
 Cargo.lock
 # graft 代码图谱缓存（可再生）
 /graft/
+# OMC harness 运行状态目录（agent 状态/handoff 不入库）
+.omc/

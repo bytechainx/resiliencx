@@ -88,7 +88,7 @@ fn consumer_circuit_and_rate_limit_surface() {
     })
     .expect("cb");
     let _ = cb.call(&instr, "c", || {
-        Err::<(), _>(ResiliencxError::invalid("trip"))
+        Err::<(), _>(ResiliencxError::transient("trip"))
     });
     assert_eq!(cb.state(), CircuitState::Open);
     assert_eq!(*instr.open.lock().expect("o"), 1);

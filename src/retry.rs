@@ -143,6 +143,19 @@ impl RetryConfig {
     }
 }
 
+// ── retry_after 支持 ─────────────────────────────────────────────────────────
+
+/// 从配置中提取最大重试延迟（毫秒），用于 `retry_after` 提示的上限约束。
+///
+/// - [`Backoff::Constant`]：返回 `None`（无显式上限，直接使用提示值）。
+/// - [`Backoff::Exponential`]：返回 `Some(max_delay_ms)`。
+fn retry_max_delay_ms(config: &RetryConfig) -> Option<u64> {
+    match config.backoff {
+        Backoff::Constant => None,
+        Backoff::Exponential { max_delay_ms, .. } => Some(max_delay_ms),
+    }
+}
+
 // ── retry_fn ───────────────────────────────────────────────────────────────
 
 /// 装箱成功值（无泛型 monomorph，保证行覆盖可测）。
@@ -231,6 +244,8 @@ fn retry_fn_with_wait_budget_inner(
             Ok(v) => return Ok(v),
             Err(e) => {
                 let retryable = e.is_retryable();
+                // 在 e 被移入 last_err 之前提取 retry_after 提示
+                let retry_after_hint = e.retry_after();
                 last_err = Some(e);
                 if retryable && attempt < config.max_attempts {
                     if let Some(b) = budget {
@@ -240,7 +255,18 @@ fn retry_fn_with_wait_budget_inner(
                     }
                     instrumentation.record_retry(op, attempt);
                     let delay = retry_delay_ms_with_seed(config, attempt, jitter_seed);
-                    wait.wait_ms(delay);
+                    // 如果错误携带 retry_after 提示，用其覆盖计算出的退避延迟（仍受 max_delay 上限约束）
+                    let effective_delay = if let Some(hint) = retry_after_hint {
+                        let hint_ms = hint.as_millis() as u64;
+                        if let Some(max) = retry_max_delay_ms(config) {
+                            hint_ms.min(max)
+                        } else {
+                            hint_ms
+                        }
+                    } else {
+                        delay
+                    };
+                    wait.wait_ms(effective_delay);
                 } else {
                     break;
                 }
@@ -403,6 +429,8 @@ where
             Ok(v) => return Ok(v),
             Err(e) => {
                 let retryable = e.is_retryable();
+                // 在 e 被移入 last_err 之前提取 retry_after 提示
+                let retry_after_hint = e.retry_after();
                 last_err = Some(e);
                 if retryable && attempt < config.max_attempts {
                     let reservation = match budget {
@@ -412,7 +440,18 @@ where
                         None => None,
                     };
                     let delay = retry_delay_ms_with_seed(config, attempt, jitter_seed);
-                    wait.wait_ms(delay).await;
+                    // 如果错误携带 retry_after 提示，用其覆盖计算出的退避延迟（仍受 max_delay 上限约束）
+                    let effective_delay = if let Some(hint) = retry_after_hint {
+                        let hint_ms = hint.as_millis() as u64;
+                        if let Some(max) = retry_max_delay_ms(config) {
+                            hint_ms.min(max)
+                        } else {
+                            hint_ms
+                        }
+                    } else {
+                        delay
+                    };
+                    wait.wait_ms(effective_delay).await;
                     if let Some(reservation) = reservation {
                         reservation.commit();
                     }
@@ -752,5 +791,127 @@ mod tests {
         assert!(debug.contains("context"));
         assert!(debug.contains("has_budget: true"));
         assert!(debug.contains("jitter_seed: 9"));
+    }
+
+    // ── 回归：retry_after 提示被读取并用于覆盖退避延迟 ─────────────────
+
+    #[test]
+    fn retry_after_hint_overrides_delay_with_constant_backoff() {
+        // 携带 retry_after 的错误应该用提示值覆盖计算出的 delay。
+        let config = RetryConfig {
+            max_attempts: 3,
+            base_delay_ms: 100,
+            backoff: Backoff::Constant,
+            jitter_bps: 0,
+        };
+        let wait = RecordingWait::new();
+        let mut calls = 0u32;
+        let hint_delay = Duration::from_millis(37);
+        let mut op = || {
+            calls += 1;
+            if calls < 3 {
+                Err(ResiliencxError::transient_after("限流", hint_delay))
+            } else {
+                Ok(retry_ok(()))
+            }
+        };
+        retry_fn_with_wait(&config, &crate::NoopInstrumentation, "op", &wait, &mut op)
+            .expect("应成功");
+        // 两次重试都应使用 retry_after 提示值 37ms，而非 base_delay 100ms
+        let delays = wait.delays();
+        assert_eq!(delays.len(), 2);
+        assert_eq!(delays[0], 37);
+        assert_eq!(delays[1], 37);
+    }
+
+    #[test]
+    fn retry_after_hint_capped_by_exponential_max_delay() {
+        // Exponential 退避下 retry_after 提示值受 max_delay_ms 上限约束。
+        let config = RetryConfig {
+            max_attempts: 3,
+            base_delay_ms: 10,
+            backoff: Backoff::Exponential {
+                factor: 2,
+                max_delay_ms: 30,
+            },
+            jitter_bps: 0,
+        };
+        let wait = RecordingWait::new();
+        let mut calls = 0u32;
+        // 提示值 500ms 远超 max_delay_ms=30，应被截断
+        let hint_delay = Duration::from_millis(500);
+        let mut op = || {
+            calls += 1;
+            if calls < 3 {
+                Err(ResiliencxError::transient_after("限流", hint_delay))
+            } else {
+                Ok(retry_ok(()))
+            }
+        };
+        retry_fn_with_wait(&config, &crate::NoopInstrumentation, "op", &wait, &mut op)
+            .expect("应成功");
+        let delays = wait.delays();
+        assert_eq!(delays.len(), 2);
+        // 两次重试都应用 capped 值 30ms
+        assert!(delays[0] <= 30, "应被 max_delay_ms=30 截断: {}", delays[0]);
+        assert!(delays[1] <= 30, "应被 max_delay_ms=30 截断: {}", delays[1]);
+    }
+
+    #[test]
+    fn retry_without_retry_after_uses_normal_delay() {
+        // 未携带 retry_after 的 transient 错误仍使用正常退避计算。
+        let config = RetryConfig {
+            max_attempts: 3,
+            base_delay_ms: 5,
+            backoff: Backoff::Constant,
+            jitter_bps: 0,
+        };
+        let wait = RecordingWait::new();
+        let mut calls = 0u32;
+        let mut op = || {
+            calls += 1;
+            if calls < 3 {
+                Err(ResiliencxError::transient("无提示"))
+            } else {
+                Ok(retry_ok(()))
+            }
+        };
+        retry_fn_with_wait(&config, &crate::NoopInstrumentation, "op", &wait, &mut op)
+            .expect("应成功");
+        let delays = wait.delays();
+        assert_eq!(delays.len(), 2);
+        assert_eq!(delays[0], 5);
+        assert_eq!(delays[1], 5);
+    }
+
+    #[tokio::test]
+    async fn retry_async_retry_after_hint_overrides_delay() {
+        // 异步路径同样应读取 retry_after 提示。
+        let config = RetryConfig {
+            max_attempts: 3,
+            base_delay_ms: 100,
+            backoff: Backoff::Constant,
+            jitter_bps: 0,
+        };
+        let wait = RecordingWait::new();
+        let mut calls = 0u32;
+        let hint_delay = Duration::from_millis(42);
+        let result = retry_async(&config, &crate::NoopInstrumentation, "op", &wait, || {
+            calls += 1;
+            async move {
+                if calls < 3 {
+                    Err(ResiliencxError::transient_after("限流", hint_delay))
+                } else {
+                    Ok(retry_ok(()))
+                }
+            }
+        })
+        .await
+        .expect("应成功");
+        retry_downcast::<()>(result).expect("类型");
+        let delays = wait.delays();
+        assert_eq!(delays.len(), 2);
+        assert_eq!(delays[0], 42);
+        assert_eq!(delays[1], 42);
     }
 }
