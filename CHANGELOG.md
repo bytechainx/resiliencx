@@ -8,11 +8,29 @@
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-22
+
 ### 新增
 
 - 特性 002：`tests/tdd_contracts.rs`（覆盖公开接口契约全部 12 个入口的行为契约 +
   TDD-PROBE 变异探测表）、`tests/sdd_spec.rs`（`docs/标准.md` 全部 7 个章节条款的
   可执行断言）、`tests/aidd_boundary.rs`（8 条经复核的 AI 生成对抗 / 边界用例）。
+
+### 变更
+
+- **内部结构改写（公开 API 与可观察契约均不变）**：按 `docs/module-rules.md` §5.5 的手法，把
+  `src/retry.rs` 的两块职责下沉为子模块 —— 退避策略与等待抽象（`Backoff`、`Wait` / `AsyncWait`
+  两个 trait 与四个实现）→ `src/retry/wait.rs`；退避延迟与抖动的纯函数（`retry_delay_ms[_with_seed]`、
+  `apply_deterministic_jitter` / `apply_seeded_jitter`）→ `src/retry/jitter.rs`。门面 `src/retry.rs`
+  保留模块文档、`RetryConfig` / `RetrySafety` / `RetryContext` / `RetryValue`、`retry_fn*` 与
+  `retry_async*` 全家族、`retry_ok` / `retry_downcast`，以及**原有内联测试**。
+  搬走的公开项经门面 `pub use` 转出（含 `#[cfg(feature = "tokio")]` 门控的 `TokioSleepWait`），
+  故 `resiliencx::retry::{…}` 与 crate 根 `pub use retry::{…}` 的公开路径**一字未改**。
+  `src/retry.rs` 生产段由 **649 → 445** 行。
+  动机：`module-rules` 是元仓库必需检查，且它审计各仓**默认分支**，故当 `retry.rs` 生产段距
+  `MR-STRUCT-007` 的 800 行 ERROR 阈值只剩 151 行时，任一仓的任意改动都可能卡住元仓库的全部 PR。
+  属**纯搬移**（行多重集比对确认零代码行丢失），全部测试与 doctest 结果不变
+  （默认 feature 115 项 / `--all-features` 122 项）。
 
 ## [0.1.0] - 2026-09-21
 

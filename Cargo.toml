@@ -1,6 +1,6 @@
 [package]
 name = "resiliencx"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 rust-version = "1.77"
 description = "弹性原语：安全重试 + 重试预算 + 熔断 + 限流 + 舱壁，无墙钟依赖、可注入观测"
