@@ -71,7 +71,7 @@ fn main() {
     assert_eq!(cb.state(), CircuitState::Closed);
     let _ = cb
         .call(&instr, "prod.circuit", || {
-            Err::<(), _>(ResiliencxError::invalid("trip"))
+            Err::<(), _>(ResiliencxError::transient("trip"))
         })
         .unwrap_err();
     assert_eq!(cb.state(), CircuitState::Open);

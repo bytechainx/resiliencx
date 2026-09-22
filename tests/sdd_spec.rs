@@ -87,7 +87,7 @@ fn assert_capability_standard() {
     })
     .expect("合法阈值");
     let _ = breaker.call(&NoopInstrumentation, "cap.cb", || {
-        Err::<(), _>(ResiliencxError::invalid("trip"))
+        Err::<(), _>(ResiliencxError::transient("trip"))
     });
     assert_eq!(breaker.state(), CircuitState::Open);
     let _ = breaker.call(&NoopInstrumentation, "cap.cb", || Ok(()));

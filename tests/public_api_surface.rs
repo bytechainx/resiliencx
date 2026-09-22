@@ -76,10 +76,14 @@ fn circuit_config_accessor_and_noop_instr() {
     assert_eq!(cb.state(), CircuitState::Closed);
     let instr = NoopInstrumentation;
     let _ = format!("{instr:?}");
-    cb.call(&instr, "op", || Err::<(), _>(ResiliencxError::invalid("x")))
-        .unwrap_err();
-    cb.call(&instr, "op", || Err::<(), _>(ResiliencxError::invalid("x")))
-        .unwrap_err();
+    cb.call(&instr, "op", || {
+        Err::<(), _>(ResiliencxError::transient("x"))
+    })
+    .unwrap_err();
+    cb.call(&instr, "op", || {
+        Err::<(), _>(ResiliencxError::transient("x"))
+    })
+    .unwrap_err();
     assert_eq!(cb.state(), CircuitState::Open);
 
     let rcfg = RetryConfig::fixed(1, 0);

@@ -113,7 +113,11 @@ impl CircuitBreaker {
                 Ok(v)
             }
             Err(e) => {
-                self.on_failure(instrumentation, op);
+                // 仅临时性（可重试）错误计入熔断计数；永久错误（配置/参数类错误）不计入，
+                // 避免把调用方自身错误误判为下游故障导致断路器误跳闸。
+                if e.is_retryable() {
+                    self.on_failure(instrumentation, op);
+                }
                 Err(e)
             }
         }
@@ -247,9 +251,13 @@ mod tests {
             open: Mutex::new(0),
             close: Mutex::new(0),
         };
-        // trip
-        let _ = cb.call(&instr, "x", || Err::<(), _>(ResiliencxError::invalid("a")));
-        let _ = cb.call(&instr, "x", || Err::<(), _>(ResiliencxError::invalid("b")));
+        // trip（使用 transient 错误触发跳闸）
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::transient("a"))
+        });
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::transient("b"))
+        });
         assert_eq!(cb.state(), CircuitState::Open);
 
         // first reject stays Open; second reject transitions to HalfOpen after returning
@@ -275,8 +283,13 @@ mod tests {
             open: Mutex::new(0),
             close: Mutex::new(0),
         };
-        let _ = cb.call(&instr, "x", || Err::<(), _>(ResiliencxError::invalid("a")));
-        let _ = cb.call(&instr, "x", || Err::<(), _>(ResiliencxError::invalid("b")));
+        // 使用 transient 错误触发跳闸
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::transient("a"))
+        });
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::transient("b"))
+        });
         let _ = cb.call(&instr, "x", || Ok(()));
         let _ = cb.call(&instr, "x", || Ok(()));
         assert_eq!(cb.state(), CircuitState::HalfOpen);
@@ -299,5 +312,102 @@ mod tests {
             close: Mutex::new(0),
         };
         instr.record_retry("probe", 1);
+    }
+
+    // ── 回归：熔断仅对临时性错误计数 ──────────────────────────────────
+
+    #[test]
+    fn permanent_errors_do_not_trip_circuit() {
+        // 永久错误（如 Invalid）属调用方自身问题，不应计入熔断计数。
+        let mut cb = CircuitBreaker::new(cfg()).expect("cb");
+        let instr = NoopInstrumentation;
+        for _ in 0..(cfg().failure_threshold + 5) {
+            let _ = cb.call(&instr, "x", || {
+                Err::<(), _>(ResiliencxError::invalid("永久错误"))
+            });
+            assert_eq!(
+                cb.state(),
+                CircuitState::Closed,
+                "永久错误不应改变断路器状态"
+            );
+        }
+    }
+
+    #[test]
+    fn transient_errors_still_trip_circuit() {
+        // 临时性错误达到阈值后仍应触发 Open。
+        let mut cb = CircuitBreaker::new(cfg()).expect("cb");
+        let instr = NoopInstrumentation;
+        let thresh = cfg().failure_threshold;
+        for _ in 0..thresh - 1 {
+            let _ = cb.call(&instr, "x", || {
+                Err::<(), _>(ResiliencxError::transient("临时"))
+            });
+            assert_eq!(cb.state(), CircuitState::Closed);
+        }
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::transient("最后一次"))
+        });
+        assert_eq!(cb.state(), CircuitState::Open);
+    }
+
+    #[test]
+    fn mixed_errors_only_transient_counts() {
+        // 永久错误穿插在临时错误之间，不重置也不累加计数器。
+        let mut cb = CircuitBreaker::new(cfg()).expect("cb");
+        let instr = NoopInstrumentation;
+        // 永久错误：不计入
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::invalid("永久"))
+        });
+        assert_eq!(cb.state(), CircuitState::Closed);
+        // 临时错误 1
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::transient("t1"))
+        });
+        assert_eq!(cb.state(), CircuitState::Closed);
+        // 永久错误：不计入，不应重置 transient 计数
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::invalid("永久2"))
+        });
+        assert_eq!(cb.state(), CircuitState::Closed);
+        // 临时错误 2 → 达到阈值
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::transient("t2"))
+        });
+        assert_eq!(cb.state(), CircuitState::Open);
+    }
+
+    #[test]
+    fn half_open_permanent_error_does_not_reopen() {
+        // HalfOpen 下永久错误不表示下游故障，不应重新跳闸。
+        let mut cb = CircuitBreaker::new(cfg()).expect("cb");
+        let instr = NoopInstrumentation;
+        // 先通过 transient 错误进入 Open
+        for _ in 0..cfg().failure_threshold {
+            let _ = cb.call(&instr, "x", || {
+                Err::<(), _>(ResiliencxError::transient("t"))
+            });
+        }
+        assert_eq!(cb.state(), CircuitState::Open);
+        // 拒绝达阈值 → HalfOpen
+        for _ in 0..cfg().open_to_half_open_after_rejects {
+            let _ = cb.call(&instr, "x", || Ok(()));
+        }
+        assert_eq!(cb.state(), CircuitState::HalfOpen);
+        // HalfOpen 下收到永久错误：不重新打开
+        let _ = cb.call(&instr, "x", || {
+            Err::<(), _>(ResiliencxError::invalid("永久"))
+        });
+        assert_eq!(
+            cb.state(),
+            CircuitState::HalfOpen,
+            "永久错误在 HalfOpen 下不应导致重新跳闸"
+        );
+        // 后续成功仍可闭合
+        for _ in 0..cfg().success_threshold {
+            cb.call(&instr, "x", || Ok(())).expect("成功");
+        }
+        assert_eq!(cb.state(), CircuitState::Closed);
     }
 }
