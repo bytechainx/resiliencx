@@ -20,7 +20,11 @@
 ```text
 src/
 ├── lib.rs        # 模块声明 + 受控 re-export（RetrySafety / RetryContext / RetryConfig 等）
-├── retry.rs      # 安全重试：retry_fn_safe / retry_async_safe / Backoff / Wait（NoWait / ThreadSleepWait / RecordingWait）
+├── retry.rs      # 重试门面：RetryConfig / RetrySafety / RetryContext / RetryValue、
+│                 # retry_fn* 与 retry_async* 全家族、retry_ok / retry_downcast + 内联测试
+├── retry/
+│   ├── jitter.rs    # 退避延迟与抖动纯函数（retry_delay_ms[_with_seed] / apply_*_jitter）
+│   └── wait.rs      # Backoff 与 Wait / AsyncWait 两个 trait 及其四个实现
 ├── budget.rs     # 令牌式重试预算：RetryBudget / call_with_retry_budget[_async][_safe]
 ├── circuit.rs    # 三态熔断：CircuitBreaker（无墙钟，拒绝计数推进 HalfOpen）
 ├── rate_limit.rs # 令牌桶限流：RateLimiter（无墙钟，显式 refill）
