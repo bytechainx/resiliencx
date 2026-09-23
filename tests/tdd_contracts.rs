@@ -6,7 +6,7 @@
 )]
 //! TDD 行为契约（特性 002）。
 //!
-//! 入口集合 = `specs/002-*/contracts/public-api-contract.md` 中 `resiliencx` 全部入口。
+//! 入口集合 = `specs/features/002-*/contracts/public-api-contract.md` 中 `resiliencx` 全部入口。
 //! 下表每个入口先在变异副本上观测应红、再在本树观测绿；实际执行的变异与红绿结果
 //! 见 PR 描述（变异描述 + 失败用例名 + 复现命令）。
 //!
