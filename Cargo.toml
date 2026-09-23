@@ -55,3 +55,9 @@ panic = "deny"
 unreachable = "deny"
 todo = "deny"
 unimplemented = "deny"
+
+[package.metadata.bytechainx]
+module_id = "resiliencx"
+owner = "bytechainx"
+role = "infra"
+semantic_contract = "docs/标准.md"
