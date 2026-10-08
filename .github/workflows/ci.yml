@@ -65,3 +65,38 @@ jobs:
       - name: cargo test --all-features
         working-directory: app
         run: cargo test --all-features
+
+  supply-chain:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+
+        with:
+          manifest-path: app/Cargo.toml
+
+
+  msrv:
+    name: msrv 1.77
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: 安装 MSRV 工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.77"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo check（按声明的 rust-version）
+        working-directory: app
+        run: cargo check --all-features
