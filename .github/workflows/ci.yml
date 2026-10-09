@@ -77,8 +77,6 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check
-
-        with:
           manifest-path: app/Cargo.toml
 
 
