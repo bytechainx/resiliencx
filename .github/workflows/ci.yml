@@ -3,7 +3,7 @@ name: CI
 # 组织 Rust 规范的 P0 门禁三件套（见仓库 AGENTS.md）：
 #   cargo fmt --check / cargo clippy --all-targets -- -D warnings / cargo test
 #
-# 与第一轮适配器仓库的 ci.yml 的差异（两处）：
+# 与第一轮适配器仓库的 ci.yml 的差异：
 # 1. 本仓库依赖尚未发布到 crates.io 的 `instrumentationx`，Cargo.toml 中以
 #    `path = "../instrumentationx"` 声明。CI 必须把该仓库 checkout 到同一相对位置，
 #    依赖才能解析。
@@ -13,9 +13,11 @@ name: CI
 # 2. 本仓库有可选 feature `tokio`（`TokioSleepWait` / `retry_async_with_deadline`
 #    在该 feature 下才参与编译），因此 clippy 与 test 均加 `--all-features`，
 #    否则 feature-gated 代码不会被 CI 覆盖。
+# 3. 新增 `cargo deny` 供应链作业与 `msrv` 作业（组织基线 R-SEC-007 / R-DEP-005）。
 #
 # 其余约定与第一轮一致：
-# - 不使用 `--locked`：本仓库是库，`Cargo.lock` 不入库（由下游决定版本）。
+# - 使用 `--locked` 的等价语义：本仓库已入库 `Cargo.lock`（组织基线 R-SEC-009 /
+#   R-DEP-005：供应链可重现），CI 按锁文件解析依赖。
 # - `cargo test` 同时运行单元测试、集成测试与文档测试（doctest）。
 # - 不依赖任何外部服务：全部用例离线运行。
 # - 不设全局 `RUSTFLAGS`：`-D warnings` 只由 clippy 那一行的 `--` 参数表达，
@@ -65,3 +67,48 @@ jobs:
       - name: cargo test --all-features
         working-directory: app
         run: cargo test --all-features
+
+  supply-chain:
+    name: cargo deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: checkout 依赖 instrumentationx
+        uses: actions/checkout@v4
+        with:
+          repository: bytechainx/instrumentationx
+          path: instrumentationx
+
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check
+          manifest-path: app/Cargo.toml
+
+
+  msrv:
+    name: msrv 1.77
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: checkout 依赖 instrumentationx
+        uses: actions/checkout@v4
+        with:
+          repository: bytechainx/instrumentationx
+          path: instrumentationx
+
+      - name: 安装 MSRV 工具链
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.77"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: cargo check（按声明的 rust-version）
+        working-directory: app
+        run: cargo check --all-features
