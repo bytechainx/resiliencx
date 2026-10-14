@@ -9,19 +9,33 @@
 
 ## 安装
 
-本 crate **不发布到 crates.io**；它与 `instrumentationx` 之间是 path 依赖，需把两个仓库
-clone 到同级目录后以 path 引入：
+本 crate **不发布到 crates.io**。合入 `main` 的 manifest 以 **Git 依赖**消费
+`instrumentationx`（`rev` 须与 workspace `crates.lock.json` 登记 SHA 对齐）。
+
+### 独立 clone（默认交付）
+
+只 clone 本仓时，`Cargo.toml` 已声明 Git 依赖（`rev` 见仓内 `Cargo.toml`）。
+
+消费方引入 `resiliencx` 时使用 Git 依赖（示例）：
 
 ```toml
 [dependencies]
-resiliencx = { path = "../resiliencx" }
-instrumentationx = { path = "../instrumentationx" }
+resiliencx = { version = "0.1.1", git = "https://github.com/bytechainx/resiliencx.git", rev = "<RESILIENCX_SHA>" }
 ```
 
 启用非阻塞 `tokio` 等待与整次 deadline：
 
 ```toml
-resiliencx = { path = "../resiliencx", features = ["tokio"] }
+resiliencx = { version = "0.1.1", git = "https://github.com/bytechainx/resiliencx.git", rev = "<RESILIENCX_SHA>", features = ["tokio"] }
+```
+
+### 工作区并排开发（仅本地）
+
+与 `instrumentationx` 同级检出时，可在 **本地** 使用 patch 覆盖：
+
+```toml
+[patch.crates-io]
+instrumentationx = { path = "../instrumentationx" }
 ```
 
 ## 能力矩阵
