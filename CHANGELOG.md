@@ -8,6 +8,10 @@
 
 ## [Unreleased]
 
+### 变更
+
+- `instrumentationx` 默认依赖改为 Git + `rev`（对齐 workspace lock SHA），README 区分独立 clone 与工作区 patch 开发。
+
 ## [0.1.1] - 2026-09-22
 
 ### 新增

@@ -16,6 +16,7 @@ dependencies = [
 [[package]]
 name = "instrumentationx"
 version = "0.1.0"
+source = "git+https://github.com/bytechainx/instrumentationx.git?rev=bb23b70bfc2f7b7438ff2bc9635ec31a13d7294d#bb23b70bfc2f7b7438ff2bc9635ec31a13d7294d"
 
 [[package]]
 name = "once_cell"

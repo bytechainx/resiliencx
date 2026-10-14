@@ -36,3 +36,6 @@ wildcards = "warn"
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"
+allow-git = [
+    "https://github.com/bytechainx/instrumentationx",
+]
