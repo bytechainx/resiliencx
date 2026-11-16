@@ -28,11 +28,12 @@ include = [
 [dependencies]
 instrumentationx = { version = "0.1.0", git = "https://github.com/bytechainx/instrumentationx.git", rev = "bb23b70bfc2f7b7438ff2bc9635ec31a13d7294d" }
 async-trait = "0.1"
-tokio = { version = "1", optional = true, default-features = false, features = ["time"] }
+# tokio >=1.54 要求 rustc 1.85，本仓 MSRV 1.77，故锁定 <1.54（含 RUSTSEC-2026-0386 修复的 1.53.3）
+tokio = { version = ">=1.53.3, <1.54", optional = true, default-features = false, features = ["time"] }
 tracing = "0.1"
 
 [dev-dependencies]
-tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "time"] }
+tokio = { version = ">=1.53.3, <1.54", features = ["macros", "rt", "rt-multi-thread", "time"] }
 
 [features]
 default = []
