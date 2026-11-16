@@ -4,6 +4,7 @@ use crate::error::{ResiliencxError, ResiliencxResult};
 use crate::Instrumentation;
 use std::any::Any;
 use std::future::Future;
+#[cfg(any(feature = "tokio", test))]
 use std::time::Duration;
 
 pub use self::jitter::{
