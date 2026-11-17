@@ -3,7 +3,7 @@
 # 其余 job 保留本仓自有定义。模板版本 pin tag，升级走 MR 改 ref。
 include:
   - project: "xhyperium/workspace"
-    ref: "governance-v1.0.1"
+    ref: "governance-v1.0.4"
     file:
       - "/.gitlab/ci/templates/governance.yml"
       - "/.gitlab/ci/templates/rust.yml"

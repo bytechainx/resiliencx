@@ -37,5 +37,5 @@ wildcards = "warn"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-git = [
-    "https://github.com/bytechainx/instrumentationx",
+    "https://git.xhyperium.com/xhyperium/infra/instrumentationx",
 ]
