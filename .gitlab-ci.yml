@@ -43,3 +43,21 @@ msrv:
   script:
     - if [ "$MSRV" != "1.88" ]; then rustup toolchain install "$MSRV" --profile minimal; fi
     - cargo +"$MSRV" check --all-features
+
+resiliencx-prod-live:
+  extends: .rust
+  stage: test
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "push" && ($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_TAG)'
+  script:
+    - curl -fsSLO https://nodejs.org/dist/v22.23.5/node-v22.23.5-linux-x64.tar.xz
+    - tar -xJf node-v22.23.5-linux-x64.tar.xz -C /usr/local --strip-components=1
+    - rm -f node-v22.23.5-linux-x64.tar.xz
+    - cargo test --all-features
+    - cargo test --test e2e_resilienc -- --include-ignored --test-threads=1
+    - node scripts/emit-e1-receipt.mjs --out e1-receipt.json
+  artifacts:
+    when: always
+    paths:
+      - e1-receipt.json
+    expire_in: 90 days
