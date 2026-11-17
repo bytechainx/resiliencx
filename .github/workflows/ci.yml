@@ -112,3 +112,51 @@ jobs:
       - name: cargo check（按声明的 rust-version）
         working-directory: app
         run: cargo check --all-features
+
+  # E1 生产收据：仅在 main / tag 上运行，绑定 pipeline/job/commit 生成收据工件。
+  # 对齐 Spec Pipeline r2 DP-2 处置方案与 STATUS.md C2/C4 登记；本仓无外部真服务，
+  # E1 口径 = CI 内全量测试（含 e2e）绿后由 CI 环境变量签发的 provenance 收据，
+  # 不是 live 服务探活。收据为工件，不入库；闭合回写由规格根侧另行登记。
+  resiliencx-prod-live:
+    name: resiliencx-prod-live (E1 receipt)
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: checkout 本仓库
+        uses: actions/checkout@v4
+        with:
+          path: app
+
+      - name: checkout 依赖 instrumentationx
+        uses: actions/checkout@v4
+        with:
+          repository: bytechainx/instrumentationx
+          path: instrumentationx
+
+      - name: 安装 Rust 工具链
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+
+      - name: cargo test --all-features
+        working-directory: app
+        run: cargo test --all-features
+
+      - name: e2e（含忽略项，单线程）
+        working-directory: app
+        run: cargo test --test e2e_resilienc -- --include-ignored --test-threads=1
+
+      - name: 生成 E1 收据
+        working-directory: app
+        run: node scripts/emit-e1-receipt.mjs --out e1-receipt.json
+
+      - name: 上传 E1 收据工件
+        uses: actions/upload-artifact@v4
+        with:
+          name: e1-receipt
+          path: app/e1-receipt.json
+          retention-days: 90
